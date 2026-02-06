@@ -1,0 +1,131 @@
+######################################################################################
+#
+# This workflow is a build & release workflow for Crystal
+# Configurable with APP_NAME & ENTRYPOINT env vars
+# 
+######################################################################################
+
+
+name: Crystal Build & Release
+
+env:
+  APP_NAME:
+  ENTRYPOINT:
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux x86_64 (Crystal)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev libpcre3-dev libyaml-dev libgmp-dev \
+            build-essential pkg-config
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: latest
+
+      - name: Install shards
+        run: shards install
+
+      - name: Create bin directory
+        run: mkdir -p bin
+
+      - name: Build
+        run: |
+          crystal build --release -o bin/${{ env.APP_NAME }}-linux-x86_64 ${{ env.ENTRYPOINT }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-linux-x86_64
+          path: bin/${{ env.APP_NAME }}-linux-x86_64
+
+  build-macos-x86_64:
+    name: Build macOS x86_64 (Crystal)
+    runs-on: macos-15-intel   # Intel runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: brew install openssl@3 pcre libyaml gmp
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: latest
+
+      - run: shards install
+
+      - name: Create bin directory
+        run: mkdir -p bin
+
+      - name: Build
+        run: |
+          crystal build --release -o bin/${{ env.APP_NAME }}-macos-x86_64 ${{ env.ENTRYPOINT }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-macos-x86_64
+          path: bin/${{ env.APP_NAME }}-macos-x86_64
+
+  build-macos-aarch64:
+    name: Build macOS arm64 (Crystal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: brew install openssl@3 pcre libyaml gmp
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: latest
+
+      - run: shards install
+
+      - name: Create bin directory
+        run: mkdir -p bin
+
+      - name: Build
+        run: |
+          crystal build --release -o bin/${{ env.APP_NAME }}-macos-aarch64 ${{ env.ENTRYPOINT }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-macos-aarch64
+          path: bin/${{ env.APP_NAME }}-macos-aarch64
+
+  release:
+    name: Publish GitHub Release
+    needs:
+      - build-linux
+      - build-macos-x86_64
+      - build-macos-aarch64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/**/${{ env.APP_NAME }}-linux-x86_64
+            release/**/${{ env.APP_NAME }}-macos-x86_64
+            release/**/${{ env.APP_NAME }}-macos-aarch64
