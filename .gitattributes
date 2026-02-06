@@ -1,0 +1,7 @@
+*.gitattributes linguist-language=gitattributes
+*.gitattributes linguist-detectable=true
+*.gitattributes linguist-documentation=false
+
+*.yml linguist-language=YAML
+workflows/*.yml linguist-detectable=true
+**/*.yml linguist-documentation=false
