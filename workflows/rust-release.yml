@@ -1,0 +1,175 @@
+######################################################################################
+#
+# This workflow is a build & release workflow for Rust
+# Configurable with environment variables.
+# 
+######################################################################################
+
+name: Rust Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  LINUX_TARGET:
+  MACOS_TARGETS:
+  WINDOWS_TARGET:
+  BIN_NAME:
+  ARTIFACT_PREFIX:
+
+jobs:
+  build-linux:
+    name: Build Linux ${{ env.LINUX_TARGET }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenSSL dev and pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config curl build-essential
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          rustup default stable
+          rustup component add rustfmt
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build project for ${{ env.LINUX_TARGET }}
+        run: |
+          source $HOME/.cargo/env
+          cargo build --target ${{ env.LINUX_TARGET }} --release
+
+      - name: Upload Linux binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-linux-x86_64
+          path: target/${{ env.LINUX_TARGET }}/release/${{ env.BIN_NAME }}
+
+  build-macos:
+    name: Build macOS Binaries
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [${{ fromJson('["' + env.MACOS_TARGETS.replace(',', '","') + '"]') }}]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust target ${{ matrix.target }}
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.target }}
+
+      - name: Build for ${{ matrix.target }}
+        run: cargo build --target ${{ matrix.target }} --release
+
+      - name: Upload macOS binary ${{ matrix.target }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-macos-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/${{ env.BIN_NAME }}
+
+  build-windows:
+    name: Build Windows Binary
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          $Env:CARGO_HOME = "$Env:USERPROFILE\.cargo"
+          $Env:PATH = "$Env:CARGO_HOME\bin;$Env:PATH"
+          rustup default stable
+          rustup component add rustfmt
+
+      - name: Install Rust target ${{ env.WINDOWS_TARGET }}
+        run: rustup target add ${{ env.WINDOWS_TARGET }}
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v3
+        with:
+          path: |
+            $Env:USERPROFILE\.cargo\registry
+            $Env:USERPROFILE\.cargo\git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build for Windows
+        run: cargo build --target ${{ env.WINDOWS_TARGET }} --release
+
+      - name: Upload Windows binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-windows-x86_64
+          path: target\${{ env.WINDOWS_TARGET }}\release\${{ env.BIN_NAME }}.exe
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-linux-x86_64
+          path: ./release/linux
+
+      - name: Download macOS x86_64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-macos-x86_64-apple-darwin
+          path: ./release/macos/x86_64
+
+      - name: Download macOS aarch64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-macos-aarch64-apple-darwin
+          path: ./release/macos/aarch64
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-windows-x86_64
+          path: ./release/windows
+
+      - name: Rename all binaries for release
+        run: |
+          mv release/linux/${{ env.BIN_NAME }} release/${{ env.ARTIFACT_PREFIX }}-linux-x86_64
+          mv release/macos/x86_64/${{ env.BIN_NAME }} release/${{ env.ARTIFACT_PREFIX }}-macos-x86_64
+          mv release/macos/aarch64/${{ env.BIN_NAME }} release/${{ env.ARTIFACT_PREFIX }}-macos-aarch64
+          mv release/windows/${{ env.BIN_NAME }}.exe release/${{ env.ARTIFACT_PREFIX }}-windows-x86_64.exe
+
+      - name: Create GitHub Release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/${{ env.ARTIFACT_PREFIX }}-linux-x86_64
+            release/${{ env.ARTIFACT_PREFIX }}-macos-x86_64
+            release/${{ env.ARTIFACT_PREFIX }}-macos-aarch64
+            release/${{ env.ARTIFACT_PREFIX }}-windows-x86_64.exe
