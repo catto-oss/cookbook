@@ -3,6 +3,8 @@
 # This workflow is a build & release workflow for Rust
 # Configurable with environment variables.
 # 
+# https://github.com/catto-oss/cookbook
+#
 ######################################################################################
 
 name: Rust Build & Release
