@@ -60,7 +60,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [${{ fromJson('["' + env.MACOS_TARGETS.replace(' ', '","') + '"]') }}]
+        arch: ${{ fromJson(env.MACOS_TARGETS) }}
     steps:
       - uses: actions/checkout@v4
 

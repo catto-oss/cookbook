@@ -48,7 +48,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock")) }}
 
       - name: Build project for ${{ env.LINUX_TARGET }}
         run: |
@@ -66,7 +66,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        target: [${{ fromJson('["' + env.MACOS_TARGETS.replace(',', '","') + '"]') }}]
+        target: ${{ fromJson(env.MACOS_TARGETS) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.target }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock")) }}-${{ matrix.target }}
 
       - name: Build for ${{ matrix.target }}
         run: cargo build --target ${{ matrix.target }} --release
@@ -117,7 +117,7 @@ jobs:
             $Env:USERPROFILE\.cargo\registry
             $Env:USERPROFILE\.cargo\git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock")) }}
 
       - name: Build for Windows
         run: cargo build --target ${{ env.WINDOWS_TARGET }} --release
