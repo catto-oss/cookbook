@@ -1,12 +1,10 @@
 ######################################################################################
 #
 # This workflow is a build & release workflow for Crystal
-# Configurable with environment variables.
 # 
 # https://github.com/catto-oss/cookbook
 # 
 ######################################################################################
-
 
 name: Crystal Build & Release
 
@@ -16,15 +14,9 @@ on:
       - "v*"
   workflow_dispatch:
 
-env:
-  LINUX_TARGET: # x86_64-unknown-linux-gnu
-  MACOS_TARGETS: # x86_64 aarch64
-  BIN_NAME:
-  ARTIFACT_PREFIX:
-
 jobs:
   build-linux:
-    name: Build Linux ${{ env.LINUX_TARGET }} (Crystal)
+    name: Build Linux x86_64 (Crystal)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +24,8 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev libpcre3-dev libyaml-dev libgmp-dev build-essential pkg-config
+          sudo apt-get install -y libssl-dev libpcre3-dev libyaml-dev libgmp-dev \
+            build-essential pkg-config
 
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
@@ -47,20 +40,16 @@ jobs:
 
       - name: Build
         run: |
-          crystal build --release -o bin/${{ env.BIN_NAME }}-linux-x86_64 src/main.cr
+          crystal build --release -o bin/binary-linux-x86_64 cli.cr
 
-      - name: Upload Linux binary artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-linux-x86_64
-          path: bin/${{ env.BIN_NAME }}-linux-x86_64
+          name: binary-linux-x86_64
+          path: bin/binary-linux-x86_64
 
-  build-macos:
-    name: Build macOS Binaries (Crystal)
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: ${{ fromJson(env.MACOS_TARGETS) }}
+  build-macos-x86_64:
+    name: Build macOS x86_64 (Crystal)
+    runs-on: macos-15-intel   # Intel runner
     steps:
       - uses: actions/checkout@v4
 
@@ -77,59 +66,62 @@ jobs:
       - name: Create bin directory
         run: mkdir -p bin
 
-      - name: Build for ${{ matrix.arch }}
+      - name: Build
         run: |
-          if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            crystal build --release -o bin/${{ env.BIN_NAME }}-macos-x86_64 src/main.cr
-          elif [ "${{ matrix.arch }}" = "aarch64" ]; then
-            crystal build --release -o bin/${{ env.BIN_NAME }}-macos-aarch64 src/main.cr
-          fi
+          crystal build --release -o bin/binary-macos-x86_64 cli.cr
 
-      - name: Upload macOS binary ${{ matrix.arch }}
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-macos-${{ matrix.arch }}
-          path: |
-            bin/${{ env.BIN_NAME }}-macos-${{ matrix.arch }}
+          name: binary-macos-x86_64
+          path: bin/binary-macos-x86_64
+
+  build-macos-aarch64:
+    name: Build macOS arm64 (Crystal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: brew install openssl@3 pcre libyaml gmp
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: latest
+
+      - run: shards install
+
+      - name: Create bin directory
+        run: mkdir -p bin
+
+      - name: Build
+        run: |
+          crystal build --release -o bin/binary-macos-aarch64 cli.cr
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-macos-aarch64
+          path: bin/binary-macos-aarch64
 
   release:
     name: Publish GitHub Release
     needs:
       - build-linux
-      - build-macos
+      - build-macos-x86_64
+      - build-macos-aarch64
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-linux-x86_64
-          path: ./release/linux
+          path: release
 
-      - name: Download macOS x86_64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_PREFIX }}-macos-x86_64
-          path: ./release/macos/x86_64
-
-      - name: Download macOS aarch64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_PREFIX }}-macos-aarch64
-          path: ./release/macos/aarch64
-
-      - name: Rename all binaries for release
-        run: |
-          mv release/linux/${{ env.BIN_NAME }}-linux-x86_64 release/${{ env.ARTIFACT_PREFIX }}-linux-x86_64
-          mv release/macos/x86_64/${{ env.BIN_NAME }}-macos-x86_64 release/${{ env.ARTIFACT_PREFIX }}-macos-x86_64
-          mv release/macos/aarch64/${{ env.BIN_NAME }}-macos-aarch64 release/${{ env.ARTIFACT_PREFIX }}-macos-aarch64
-
-      - name: Create GitHub Release and upload binaries
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/${{ env.ARTIFACT_PREFIX }}-linux-x86_64
-            release/${{ env.ARTIFACT_PREFIX }}-macos-x86_64
-            release/${{ env.ARTIFACT_PREFIX }}-macos-aarch64
+            release/**/binary-linux-x86_64
+            release/**/binary-macos-x86_64
+            release/**/binary-macos-aarch64

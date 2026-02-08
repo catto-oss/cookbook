@@ -1,7 +1,6 @@
 ######################################################################################
 #
 # This workflow is a build & release workflow for Rust
-# Configurable with environment variables.
 # 
 # https://github.com/catto-oss/cookbook
 #
@@ -14,16 +13,9 @@ on:
     tags:
       - "v*"
 
-env:
-  LINUX_TARGET:
-  MACOS_TARGETS:
-  WINDOWS_TARGET:
-  BIN_NAME:
-  ARTIFACT_PREFIX:
-
 jobs:
   build-linux:
-    name: Build Linux ${{ env.LINUX_TARGET }}
+    name: Build Linux x86_64 native
     runs-on: ubuntu-latest
 
     steps:
@@ -48,25 +40,25 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock")) }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build project for ${{ env.LINUX_TARGET }}
+      - name: Build project for x86_64-unknown-linux-gnu
         run: |
           source $HOME/.cargo/env
-          cargo build --target ${{ env.LINUX_TARGET }} --release
+          cargo build --target x86_64-unknown-linux-gnu --release
 
       - name: Upload Linux binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-linux-x86_64
-          path: target/${{ env.LINUX_TARGET }}/release/${{ env.BIN_NAME }}
+          name: __BINARY__-linux-x86_64
+          path: target/x86_64-unknown-linux-gnu/release/__BINARY__
 
   build-macos:
     name: Build macOS Binaries
     runs-on: macos-latest
     strategy:
       matrix:
-        target: ${{ fromJson(env.MACOS_TARGETS) }}
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
 
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +73,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock")) }}-${{ matrix.target }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.target }}
 
       - name: Build for ${{ matrix.target }}
         run: cargo build --target ${{ matrix.target }} --release
@@ -89,8 +81,8 @@ jobs:
       - name: Upload macOS binary ${{ matrix.target }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-macos-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/${{ env.BIN_NAME }}
+          name: __BINARY__-macos-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/__BINARY__
 
   build-windows:
     name: Build Windows Binary
@@ -107,8 +99,8 @@ jobs:
           rustup default stable
           rustup component add rustfmt
 
-      - name: Install Rust target ${{ env.WINDOWS_TARGET }}
-        run: rustup target add ${{ env.WINDOWS_TARGET }}
+      - name: Install Rust target x86_64-pc-windows-msvc
+        run: rustup target add x86_64-pc-windows-msvc
 
       - name: Cache cargo registry and target
         uses: actions/cache@v3
@@ -117,16 +109,16 @@ jobs:
             $Env:USERPROFILE\.cargo\registry
             $Env:USERPROFILE\.cargo\git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock")) }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build for Windows
-        run: cargo build --target ${{ env.WINDOWS_TARGET }} --release
+        run: cargo build --target x86_64-pc-windows-msvc --release
 
       - name: Upload Windows binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-windows-x86_64
-          path: target\${{ env.WINDOWS_TARGET }}\release\${{ env.BIN_NAME }}.exe
+          name: __BINARY__-windows-x86_64
+          path: target\x86_64-pc-windows-msvc\release\binary.exe
 
   release:
     name: Publish GitHub Release
@@ -139,39 +131,39 @@ jobs:
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-linux-x86_64
+          name: __BINARY__-linux-x86_64
           path: ./release/linux
 
       - name: Download macOS x86_64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-macos-x86_64-apple-darwin
+          name: __BINARY__-macos-x86_64-apple-darwin
           path: ./release/macos/x86_64
 
       - name: Download macOS aarch64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-macos-aarch64-apple-darwin
+          name: __BINARY__-macos-aarch64-apple-darwin
           path: ./release/macos/aarch64
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_PREFIX }}-windows-x86_64
+          name: __BINARY__-windows-x86_64
           path: ./release/windows
 
       - name: Rename all binaries for release
         run: |
-          mv release/linux/${{ env.BIN_NAME }} release/${{ env.ARTIFACT_PREFIX }}-linux-x86_64
-          mv release/macos/x86_64/${{ env.BIN_NAME }} release/${{ env.ARTIFACT_PREFIX }}-macos-x86_64
-          mv release/macos/aarch64/${{ env.BIN_NAME }} release/${{ env.ARTIFACT_PREFIX }}-macos-aarch64
-          mv release/windows/${{ env.BIN_NAME }}.exe release/${{ env.ARTIFACT_PREFIX }}-windows-x86_64.exe
+          mv release/linux/__BINARY__ release/__BINARY__-linux-x86_64
+          mv release/macos/x86_64/__BINARY__ release/__BINARY__-macos-x86_64
+          mv release/macos/aarch64/__BINARY__ release/__BINARY__-macos-aarch64
+          mv release/windows/__BINARY__.exe release/__BINARY__windows-x86_64.exe
 
       - name: Create GitHub Release and upload binaries
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/${{ env.ARTIFACT_PREFIX }}-linux-x86_64
-            release/${{ env.ARTIFACT_PREFIX }}-macos-x86_64
-            release/${{ env.ARTIFACT_PREFIX }}-macos-aarch64
-            release/${{ env.ARTIFACT_PREFIX }}-windows-x86_64.exe
+            release/__BINARY__-linux-x86_64
+            release/__BINARY__-macos-x86_64
+            release/__BINARY__-macos-aarch64
+            release/__BINARY__windows-x86_64.exe
