@@ -1,10 +1,4 @@
-<div align=center>
-  
-<img width="1640" height="664" alt="New Project (2)" src="https://github.com/user-attachments/assets/500175bd-883d-47c5-b195-fe0143e78754" />
-
-# `cookbook`
-
-</div>
+# cookbook
 
 `cookbook` is a collection of re-usable GitHub workflows for your [actions](https://docs.github.com/en/actions)
 To add your own workflows, open a [PR](https://github.com/catto-oss/cookbook/pulls)!
